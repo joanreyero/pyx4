@@ -1,6 +1,6 @@
 <launch>
 
-    <arg name="gui" default="true"/>
+    <arg name="gui" default="false"/>
     <arg name="world" default="empty.world"/>
     <arg name="vehicle" default="iris"/>
 

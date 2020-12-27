@@ -4,13 +4,16 @@ import argparse
 import os, sys
 import rospy
 import numpy as np
-
+import time
 from generate_mission import Wpts_from_csv
 from definitions_pyx4 import MISSION_SPECS
 from setpoint_bitmasks import MASK_XY_VEL__Z_POS__YAW_RATE
+from utils import get_bitmask
 from mission_states import *
 from pyx4_base import Pyx4_base
 from geometry_msgs.msg import Twist
+from pyx4_avoidance.msg import avoidancedirection as DecisionMsg
+
 
 class Teleop_state(Generic_mission_state):
     """
@@ -50,7 +53,7 @@ class Teleop_state(Generic_mission_state):
         self.max_angular_speed = max_angular_speed
         self.z_min, self.z_max = z_min, z_max
         self.state_sub = rospy.Subscriber('/cmd_vel', Twist, self.teleop_node_cb)
-
+        self.decision_sub = rospy.Subscriber('/pyx4_avoidance_node/direction', DecisionMsg, self.decision_msg_cb)
 
     def precondition_check(self):
         ''' This function can be run by substates in order -
@@ -71,8 +74,6 @@ class Teleop_state(Generic_mission_state):
 
 
     def step(self):
-
-        # self.type_mask = MASK_XY_POS__Z_POS_YAW_POS
         # Trying to log the altitude
         rospy.loginfo_throttle(5, 'In teleop mode. Altitude: {}'.format(self._parent_ref.mavros_interface.local_z))
 
@@ -96,6 +97,17 @@ class Teleop_state(Generic_mission_state):
         self.z = np.clip(self.z + 0.5 * np.sign(checked_data.linear.z),
                          self.z_min, self.z_max)
         self.yaw_rate = checked_data.angular.z
+
+    def decision_msg_cb(self, data):
+        self.type_mask = get_bitmask('vel', 'pos', 'pos')
+        rospy.sleep(0.3)
+        if data.direction == 'left':
+            self.yaw = self.yaw + np.deg2rad(45)
+        if data.direction == 'right':
+            self.yaw = self.yaw - np.deg2rad(45)
+        if data.direction == 'back':
+            self.y_vel = - self.y_vel
+        
 
 
 def generate_telop_mission(args):
