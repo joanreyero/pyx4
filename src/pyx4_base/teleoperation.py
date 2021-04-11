@@ -7,12 +7,12 @@ import numpy as np
 import time
 from generate_mission import Wpts_from_csv
 from definitions_pyx4 import MISSION_SPECS
-from setpoint_bitmasks import MASK_XY_VEL__Z_POS__YAW_RATE
+from setpoint_bitmasks import MASK_XY_VEL__Z_POS__YAW_POS
 from utils import get_bitmask
 from mission_states import *
 from pyx4_base import Pyx4_base
 from geometry_msgs.msg import Twist
-from pyx4_avoidance.msg import avoidancedirection as DecisionMsg
+from pyx4_avoidance.msg import avoidancedirection as DirectionMsg
 
 
 class Teleop_state(Generic_mission_state):
@@ -43,8 +43,9 @@ class Teleop_state(Generic_mission_state):
                                         state_label=state_label,
                                         **kwargs
                                         )  # sub and super class args
+        self.type_mask = MASK_XY_VEL__Z_POS__YAW_POS
 
-        self.type_mask = MASK_XY_VEL__Z_POS__YAW_RATE
+
         # Using a body coordinate frame
         # It is easier to control with the keyboard
         self.coordinate_frame = PositionTarget.FRAME_BODY_NED
@@ -53,7 +54,7 @@ class Teleop_state(Generic_mission_state):
         self.max_angular_speed = max_angular_speed
         self.z_min, self.z_max = z_min, z_max
         self.state_sub = rospy.Subscriber('/cmd_vel', Twist, self.teleop_node_cb)
-        self.decision_sub = rospy.Subscriber('/pyx4_avoidance_node/direction', DecisionMsg, self.decision_msg_cb)
+        self.decision_sub = rospy.Subscriber('/pyx4_avoidance_node/direction', DirectionMsg, self.direction_msg_cb)
 
     def precondition_check(self):
         ''' This function can be run by substates in order -
@@ -67,7 +68,7 @@ class Teleop_state(Generic_mission_state):
         self.y_vel = 0.
         self.z_vel = 0.
         self.yaw_rate = 0.
-        self.type_mask = MASK_XY_VEL__Z_POS__YAW_RATE
+        self.type_mask = MASK_XY_VEL__Z_POS__YAW_POS
         self.coordinate_frame = PositionTarget.FRAME_BODY_NED
 
         self.preconditions_satisfied = True
@@ -98,15 +99,19 @@ class Teleop_state(Generic_mission_state):
                          self.z_min, self.z_max)
         self.yaw_rate = checked_data.angular.z
 
-    def decision_msg_cb(self, data):
-        self.type_mask = get_bitmask('vel', 'pos', 'pos')
-        rospy.sleep(0.3)
-        if data.direction == 'left':
-            self.yaw = self.yaw + np.deg2rad(45)
-        if data.direction == 'right':
-            self.yaw = self.yaw - np.deg2rad(45)
-        if data.direction == 'back':
-            self.y_vel = - self.y_vel
+    def direction_msg_cb(self, data):
+        # rospy.loginfo(data.direction)
+        # if data.direction == 'left':
+        #     self.yaw = self.yaw + np.deg2rad(45)
+        # if data.direction == 'right':
+        #     self.yaw = self.yaw - np.deg2rad(45)
+        # if data.direction == 'back':
+        #     rospy.loginfo('here')
+        #     self.x_vel = -self.x_vel
+        if data.type == 'absolute':
+            self.yaw = np.deg2rad(data.angle)
+        else:
+            self.yaw += np.deg2rad(data.angle)
         
 
 
